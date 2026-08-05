@@ -23,6 +23,8 @@ export const api = {
     req(`/api/summary?category=${encodeURIComponent(category)}` + (fy ? `&fy=${fy}` : "")),
   previewUpload: (fd) => req("/api/upload/preview", { method: "POST", body: fd }),
   commitUpload: (fd) => req("/api/upload/commit", { method: "POST", body: fd }),
+  uploads: () => req("/api/uploads"),
+  deleteUpload: (id) => req(`/api/uploads/${id}`, { method: "DELETE" }),
   getSettings: () => req("/api/settings"),
   putSettings: (payload) =>
     req("/api/settings", {

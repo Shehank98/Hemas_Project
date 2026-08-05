@@ -22,6 +22,19 @@ from .models import BrandRef, Fact, MonthStatus, ThemeEdit, UploadBatch
 
 Base.metadata.create_all(bind=engine)
 
+
+def _ensure_schema():
+    """Add columns introduced after a table was first created (simple migration)."""
+    from sqlalchemy import text
+    with engine.begin() as conn:
+        try:
+            conn.execute(text("ALTER TABLE facts ADD COLUMN batch_id INTEGER"))
+        except Exception:
+            pass  # already exists
+
+
+_ensure_schema()
+
 app = FastAPI(title="Media Tracking Dashboard")
 app.add_middleware(
     CORSMiddleware,
@@ -96,8 +109,20 @@ async def upload_commit(
             Fact.category == cat, Fact.month == month, Fact.media_type == media_type
         ).delete(synchronize_session=False)
 
+    batch = UploadBatch(
+        filename=file.filename or "upload.xlsx",
+        media_type=media_type,
+        as_of_date=as_of,
+        categories=",".join(sorted(categories)),
+        months=",".join(sorted(months)),
+        row_count=row_count,
+    )
+    db.add(batch)
+    db.flush()  # assign batch.id
+
     for (cat, mother, brand, theme, month), v in aggs.items():
         db.add(Fact(
+            batch_id=batch.id,
             category=cat, mother_brand=mother, brand=brand, theme_raw=theme,
             media_type=media_type, month=month,
             spend=v["spend"], freq=v["freq"], duration=v["duration"],
@@ -116,14 +141,6 @@ async def upload_commit(
         elif st.as_of_date is None or as_of >= st.as_of_date:
             st.as_of_date = as_of
 
-    db.add(UploadBatch(
-        filename=file.filename or "upload.xlsx",
-        media_type=media_type,
-        as_of_date=as_of,
-        categories=",".join(sorted(categories)),
-        months=",".join(sorted(months)),
-        row_count=row_count,
-    ))
     db.commit()
     return {
         "ok": True,
@@ -133,6 +150,61 @@ async def upload_commit(
         "rows_stored": len(aggs),
         "warnings": warnings,
     }
+
+
+@app.get("/api/uploads")
+def list_uploads(db: Session = Depends(get_db)):
+    """Recent upload history, newest first."""
+    rows = (
+        db.query(UploadBatch)
+        .order_by(UploadBatch.created_at.desc(), UploadBatch.id.desc())
+        .limit(100)
+        .all()
+    )
+    out = []
+    for b in rows:
+        live = db.query(Fact).filter(Fact.batch_id == b.id).count()
+        out.append({
+            "id": b.id,
+            "filename": b.filename,
+            "media_type": b.media_type,
+            "as_of_date": b.as_of_date.isoformat() if b.as_of_date else None,
+            "categories": [c for c in (b.categories or "").split(",") if c],
+            "months": [m for m in (b.months or "").split(",") if m],
+            "row_count": b.row_count,
+            "created_at": b.created_at.isoformat() if b.created_at else None,
+            # facts still owned by this upload (0 if a later upload superseded it)
+            "live_rows": live,
+        })
+    return {"uploads": out}
+
+
+@app.delete("/api/uploads/{batch_id}")
+def delete_upload(batch_id: int, db: Session = Depends(get_db)):
+    """Delete an upload and every number it stored, then tidy up month status."""
+    batch = db.get(UploadBatch, batch_id)
+    if batch is None:
+        raise HTTPException(status_code=404, detail="Upload not found")
+    deleted = (
+        db.query(Fact).filter(Fact.batch_id == batch_id).delete(synchronize_session=False)
+    )
+    # Remove month-status rows for (category, month) that now have no data.
+    cats = [c for c in (batch.categories or "").split(",") if c]
+    months = [m for m in (batch.months or "").split(",") if m]
+    for cat in cats:
+        for month in months:
+            remaining = (
+                db.query(Fact)
+                .filter(Fact.category == cat, Fact.month == month)
+                .count()
+            )
+            if remaining == 0:
+                db.query(MonthStatus).filter(
+                    MonthStatus.category == cat, MonthStatus.month == month
+                ).delete(synchronize_session=False)
+    db.delete(batch)
+    db.commit()
+    return {"ok": True, "deleted_rows": deleted}
 
 
 # --------------------------------------------------------------------------- #

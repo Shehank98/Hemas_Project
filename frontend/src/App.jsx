@@ -59,6 +59,7 @@ export default function App() {
               loadCategories(cat);
               setTab("dashboard");
             }}
+            onDataChanged={() => loadCategories()}
           />
         )}
         {tab === "settings" && (

@@ -45,6 +45,14 @@ name (`July`). A month auto-completes once data for a **later** month arrives, a
 you can **manually** override completion by clicking a month header on the
 dashboard (cycles complete → partial → auto).
 
+### Upload history & deletion
+
+The **Upload data** screen lists recently uploaded sheets. Each stored number is
+tagged with the upload that produced it, so **deleting an upload removes exactly
+its numbers** from the database (and tidies up month-completion state). "Live rows"
+shows how many numbers an upload still owns — `0 (superseded)` means a newer upload
+has already replaced it.
+
 ### Re-uploading (cumulative feeds)
 
 Media feeds are cumulative-to-date. Re-uploading the **same media type** for a

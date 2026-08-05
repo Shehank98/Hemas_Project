@@ -40,6 +40,8 @@ class Fact(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    # The upload that produced this aggregated row (for delete/undo).
+    batch_id: Mapped[int] = mapped_column(Integer, index=True, nullable=True)
     category: Mapped[str] = mapped_column(String(200), index=True)  # product group
     mother_brand: Mapped[str] = mapped_column(String(200), index=True)
     brand: Mapped[str] = mapped_column(String(200), index=True)

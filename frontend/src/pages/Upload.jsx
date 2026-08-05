@@ -1,9 +1,9 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { api } from "../api.js";
 
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
-export default function Upload({ onCommitted }) {
+export default function Upload({ onCommitted, onDataChanged }) {
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState(null);
   const [asOf, setAsOf] = useState(todayISO());
@@ -11,7 +11,18 @@ export default function Upload({ onCommitted }) {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [drag, setDrag] = useState(false);
+  const [uploads, setUploads] = useState([]);
   const inputRef = useRef();
+
+  async function loadUploads() {
+    try {
+      const { uploads } = await api.uploads();
+      setUploads(uploads);
+    } catch (_) {}
+  }
+  useEffect(() => {
+    loadUploads();
+  }, []);
 
   async function choose(f) {
     setErr("");
@@ -54,6 +65,7 @@ export default function Upload({ onCommitted }) {
       setPreview(null);
       setFile(null);
       if (inputRef.current) inputRef.current.value = "";
+      loadUploads();
       setTimeout(() => onCommitted(r.categories[0]), 800);
     } catch (e) {
       setErr(e.message);
@@ -62,7 +74,27 @@ export default function Upload({ onCommitted }) {
     }
   }
 
+  async function removeUpload(u) {
+    const ok = window.confirm(
+      `Delete "${u.filename}" and remove its stored numbers (${u.categories.join(", ")} · ${u.months.join(", ")})?`
+    );
+    if (!ok) return;
+    setBusy(true);
+    setErr("");
+    try {
+      const r = await api.deleteUpload(u.id);
+      setMsg(`Deleted "${u.filename}" (${r.deleted_rows} rows removed).`);
+      await loadUploads();
+      onDataChanged && onDataChanged();
+    } catch (e) {
+      setErr(e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const mediaLabel = { tv: "TV", radio: "Radio", press: "Press" };
+  const fmtWhen = (iso) => (iso ? new Date(iso).toLocaleString() : "");
 
   return (
     <>
@@ -186,6 +218,64 @@ export default function Upload({ onCommitted }) {
           </p>
         </div>
       )}
+
+      <div className="panel">
+        <div className="row" style={{ marginBottom: 10 }}>
+          <h2 style={{ margin: 0 }}>Recently uploaded sheets</h2>
+          <div className="spacer" />
+          <button className="small" onClick={loadUploads}>↻ Refresh</button>
+        </div>
+        <p className="sub" style={{ marginTop: 0 }}>
+          Delete an upload to remove its stored numbers from the database. "Live rows"
+          shows how many numbers this upload still owns (0 means a newer upload has
+          already replaced it).
+        </p>
+        {uploads.length === 0 && (
+          <p className="muted small">No uploads yet.</p>
+        )}
+        {uploads.length > 0 && (
+          <div className="table-wrap">
+            <table className="grid">
+              <thead>
+                <tr>
+                  <th>Uploaded</th>
+                  <th>File</th>
+                  <th>Media</th>
+                  <th>Product groups</th>
+                  <th>Months</th>
+                  <th>As-of</th>
+                  <th style={{ textAlign: "right" }}>Live rows</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {uploads.map((u) => (
+                  <tr key={u.id}>
+                    <td className="small">{fmtWhen(u.created_at)}</td>
+                    <td className="small">{u.filename}</td>
+                    <td><span className="pill">{mediaLabel[u.media_type] || u.media_type}</span></td>
+                    <td className="small">{u.categories.join(", ")}</td>
+                    <td className="small muted">{u.months.join(", ")}</td>
+                    <td className="small">{u.as_of_date}</td>
+                    <td className="small" style={{ textAlign: "right" }}>
+                      {u.live_rows > 0
+                        ? u.live_rows
+                        : <span className="muted">0 (superseded)</span>}
+                    </td>
+                    <td style={{ textAlign: "right" }}>
+                      <button className="small" disabled={busy}
+                              onClick={() => removeUpload(u)}
+                              style={{ color: "#b42318", borderColor: "#f3c0bb" }}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </>
   );
 }
