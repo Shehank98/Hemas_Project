@@ -86,7 +86,7 @@ export default function Settings({ categories, defaultCategory }) {
           data has been uploaded.
         </p>
         {allBrands.length === 0 && (
-          <p className="muted small">No brands yet — upload data first.</p>
+          <p className="muted small">No brands yet - upload data first.</p>
         )}
         {allBrands.length > 0 && (
           <table className="grid">
@@ -233,7 +233,7 @@ function VaThemePicker({ settings, saveGlobal }) {
         Every commercial theme in your data is listed below. Tick the ones that are
         value-adds (bonus / free exposures). Ticked themes are grouped into the
         <b> Value Adds</b> row and excluded from <b>ACD (Com Only)</b>. Changes apply
-        instantly across the dashboard and exports — no re-upload needed.
+        instantly across the dashboard and exports - no re-upload needed.
       </p>
       <div className="row" style={{ marginBottom: 8 }}>
         <input
@@ -248,7 +248,7 @@ function VaThemePicker({ settings, saveGlobal }) {
       </div>
       {loading && <p className="muted small">Loading themes…</p>}
       {!loading && themes.length === 0 && (
-        <p className="muted small">No themes yet — upload data first.</p>
+        <p className="muted small">No themes yet - upload data first.</p>
       )}
       <div className="table-wrap" style={{ maxHeight: 420, overflowY: "auto" }}>
         <table className="grid">

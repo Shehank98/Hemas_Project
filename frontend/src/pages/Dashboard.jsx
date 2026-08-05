@@ -107,7 +107,7 @@ export default function Dashboard({ categories, category, setCategory }) {
             <h2 style={{ margin: 0 }}>
               <span style={{ display: "inline-block", width: 12, height: 12, borderRadius: 3,
                 background: hex(pal.head), marginRight: 8, verticalAlign: "middle" }} />
-              {summary.category} — {summary.fy}
+              {summary.category} · {summary.fy}
             </h2>
             <div className="spacer" />
             <span className="small muted">Click a month header to cycle complete / partial / auto.</span>
@@ -124,7 +124,7 @@ export default function Dashboard({ categories, category, setCategory }) {
                   <th style={{ background: hex(pal.head), color: "#fff" }}>Wk Avg</th>
                   {months.map((m) => (
                     <th key={m.key} className={m.partial ? "partial" : ""}
-                        style={{ background: hex(pal.month), cursor: "pointer" }}
+                        style={{ background: hex(pal.month), color: "#1f2430", cursor: "pointer" }}
                         title="Click to toggle completion" onClick={() => toggleMonth(m)}>
                       {m.header}
                     </th>
