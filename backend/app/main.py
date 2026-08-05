@@ -145,16 +145,25 @@ def get_categories(db: Session = Depends(get_db)):
 
 @app.get("/api/summary")
 def get_summary(category: str, fy: int | None = None, db: Session = Depends(get_db)):
+    from .excel_export import palette_for
     cats = summary.list_categories(db)
     if category not in cats:
         raise HTTPException(status_code=404, detail="Unknown category")
-    return summary.build_summary(db, category, fy)
+    out = summary.build_summary(db, category, fy)
+    out["palette"] = palette_for(cats.index(category))
+    return out
 
 
 # --------------------------------------------------------------------------- #
 # Export
 # --------------------------------------------------------------------------- #
-def _workbook_for_category(db, category, fy=None) -> bytes:
+def _color_index(db, category) -> int:
+    """Stable colour slot for a category (its position in the sorted list)."""
+    cats = summary.list_categories(db)
+    return cats.index(category) if category in cats else 0
+
+
+def _workbook_for_category(db, category, fy=None, color_index=0) -> bytes:
     cfg = settings_store.get_all(db)
     fy_start = int(cfg.get("fy_start_month", 4))
     if fy is not None:
@@ -162,14 +171,14 @@ def _workbook_for_category(db, category, fy=None) -> bytes:
     else:
         years = summary.available_fys(db, category, fy_start) or [None]
         summaries = [summary.build_summary(db, category, y) for y in years]
-    return build_workbook(summaries)
+    return build_workbook(summaries, color_index=color_index)
 
 
 @app.get("/api/export")
 def export_category(category: str, fy: int | None = None, db: Session = Depends(get_db)):
     if category not in summary.list_categories(db):
         raise HTTPException(status_code=404, detail="Unknown category")
-    data = _workbook_for_category(db, category, fy)
+    data = _workbook_for_category(db, category, fy, _color_index(db, category))
     fname = f"Asset_Update__{_safe_name(category)}.xlsx"
     return StreamingResponse(
         io.BytesIO(data),
@@ -185,8 +194,8 @@ def export_all(db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="No data to export")
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        for cat in cats:
-            data = _workbook_for_category(db, cat)
+        for idx, cat in enumerate(cats):
+            data = _workbook_for_category(db, cat, color_index=idx)
             zf.writestr(f"Asset_Update__{_safe_name(cat)}.xlsx", data)
     buf.seek(0)
     return StreamingResponse(

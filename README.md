@@ -25,12 +25,17 @@ with **Postgres**.
 
 ### Summary year (calendar by default)
 
-Summaries are built **per year, one sheet each**. By default the year runs
-**April–March** (label `2026-27`); switch to a calendar year via **Summary year
-starts** in Settings. Pick the year with the **Year** filter, and next year's data
-automatically forms a new year's summary. Only the months that have data are shown
-(year start → current month), so there are no empty future columns. The export
-layout is `CATEGORY | BRAND | COMMERCIAL | months | YTD`.
+Summaries are built **per year, one sheet each**. The year runs **April–March**
+(label `2026-27`); switch to a calendar year via **Summary year starts** in
+Settings. Pick the year with the **Year** filter, and next year's data
+automatically forms a new year's summary. **All twelve months (April→March) are
+always shown**, with no breaks. The export layout matches the client template:
+`CATEGORY(sub) | CATEGORY | BRAND | COMMERCIAL | 2022/23 (Mont/Weekly Avg) |
+April…March | YTD`.
+
+**Each product group is themed in its own colour** (brown, green, blue, …), so
+every category's export sheet is visually distinct. The colour is stable per
+category and the dashboard uses the same theme.
 
 ### Month completion & partial months
 

@@ -130,10 +130,69 @@ export default function Settings({ categories, defaultCategory }) {
               </select>
             </label>
           </div>
-          {cat && <ThemeEdits key={cat} category={cat} />}
+          {cat && <ThemeEdits key={"th" + cat} category={cat} />}
+          {cat && <BrandRefs key={"rf" + cat} category={cat} />}
         </div>
       )}
     </>
+  );
+}
+
+function BrandRefs({ category }) {
+  const [brands, setBrands] = useState([]);
+  const [refs, setRefs] = useState({});
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    (async () => {
+      const { brands } = await api.brands(category);
+      setBrands(brands);
+      const { refs } = await api.brandRefs(category);
+      const map = {};
+      refs.forEach((r) => (map[r.brand] = r));
+      setRefs(map);
+    })();
+  }, [category]);
+
+  async function save() {
+    const payload = brands.map((b) => ({
+      brand: b,
+      mont_avg: refs[b]?.mont_avg ?? null,
+      weekly_avg: refs[b]?.weekly_avg ?? null,
+    }));
+    await api.putBrandRefs({ category, refs: payload });
+    setMsg("Reference values saved.");
+    setTimeout(() => setMsg(""), 1500);
+  }
+
+  const upd = (b, k, v) =>
+    setRefs({ ...refs, [b]: { ...refs[b], [k]: v === "" ? null : Number(v) } });
+
+  return (
+    <div style={{ marginTop: 24 }}>
+      <h3 style={{ margin: "0 0 4px" }}>Reference columns (Mont Avg / Weekly Avg)</h3>
+      <p className="muted small">
+        Manually maintained per-brand reference spend shown in the export columns E/F.
+      </p>
+      {msg && <div className="notice ok">{msg}</div>}
+      <table className="grid">
+        <thead>
+          <tr><th>Brand</th><th>Mont Avg Spend</th><th>Weekly Avg Spend</th></tr>
+        </thead>
+        <tbody>
+          {brands.map((b) => (
+            <tr key={b}>
+              <td>{b}</td>
+              <td><input type="number" value={refs[b]?.mont_avg ?? ""} onChange={(e) => upd(b, "mont_avg", e.target.value)} /></td>
+              <td><input type="number" value={refs[b]?.weekly_avg ?? ""} onChange={(e) => upd(b, "weekly_avg", e.target.value)} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="primary" onClick={save}>Save reference values</button>
+      </div>
+    </div>
   );
 }
 

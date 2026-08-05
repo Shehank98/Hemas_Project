@@ -124,20 +124,13 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
         fy_start_year = fys[0] if fys else fy_of_month(
             date.today().strftime("%Y-%m"), fy_start
         )
-    full_keys = fy_month_keys(fy_start_year, fy_start)
-
-    # Only show months from the year start up to the latest month that has data
-    # (so the sheet ends at the current partial month, not 12 empty columns).
+    # Always show the whole financial year, April through March (no breaks).
+    keys = fy_month_keys(fy_start_year, fy_start)
+    keyset = set(keys)
     all_months = {
         r[0]
         for r in db.query(Fact.month).filter(Fact.category == category).distinct()
     }
-    last_idx = -1
-    for i, k in enumerate(full_keys):
-        if k in all_months:
-            last_idx = i
-    keys = full_keys[: last_idx + 1] if last_idx >= 0 else full_keys[:1]
-    keyset = set(keys)
 
     # --- theme edits + month status + brand refs ---
     edits = {
