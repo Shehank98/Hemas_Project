@@ -31,7 +31,7 @@ export default function App() {
     <>
       <div className="topbar">
         <div className="brand">
-          <span className="dot" /> Media Tracking
+          <span className="dot" /> Hemas
         </div>
         <div className="tabs">
           {tabs.map(([id, label]) => (
