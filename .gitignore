@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local database
+*.db
+media_tracking.db
+
+# Node / frontend
+node_modules/
+frontend/dist/
+
+# Built frontend (generated at build time, served by backend)
+backend/app/static/
+
+# Env / editor
+.env
+.env.*
+!.env.example
+.DS_Store
+.vscode/
+.idea/
