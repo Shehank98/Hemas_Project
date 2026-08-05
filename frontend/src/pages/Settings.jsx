@@ -103,7 +103,7 @@ export default function Settings({ categories, defaultCategory }) {
             />
           </label>
           <label className="field">
-            Financial year starts
+            Summary year starts (January = calendar year, Jan–Dec)
             <select
               value={settings.fy_start_month || 4}
               onChange={(e) =>

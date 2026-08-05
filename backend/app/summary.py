@@ -4,6 +4,7 @@ This is the single source of truth consumed by BOTH the API (for the UI table)
 and the Excel exporter, so what you see on screen always matches the download.
 """
 import calendar
+import re
 from collections import defaultdict
 from datetime import date
 
@@ -16,6 +17,27 @@ MONTH_NAMES = [
     "", "January", "February", "March", "April", "May", "June",
     "July", "August", "September", "October", "November", "December",
 ]
+
+
+# Normalise every dash variant (em —, en –, figure ‒, horizontal ―, minus −)
+# to a plain hyphen so VA matching and display are consistent.
+_DASHES = {"—": "-", "–": "-", "‒": "-", "―": "-", "−": "-"}
+
+
+def clean_text(s: str) -> str:
+    """Normalise dash variants to a plain hyphen (keeps spacing for display)."""
+    if not s:
+        return s
+    for bad, good in _DASHES.items():
+        s = s.replace(bad, good)
+    return s
+
+
+def match_norm(s: str) -> str:
+    """Lower-case + collapse spacing around hyphens, so a VA name like '-BB'
+    matches ' - BB', '—BB' or '– BB' regardless of dashes/spaces."""
+    s = clean_text(s or "").lower()
+    return re.sub(r"\s*-\s*", "-", s)
 
 
 def _ordinal(n: int) -> str:
@@ -41,7 +63,10 @@ def fy_month_keys(fy_start_year: int, fy_start: int) -> list[str]:
     return keys
 
 
-def fy_label(fy_start_year: int) -> str:
+def fy_label(fy_start_year: int, fy_start: int = 4) -> str:
+    # Calendar year (Jan start) -> "2026"; otherwise a split year -> "2026-27".
+    if fy_start == 1:
+        return f"{fy_start_year}"
     return f"{fy_start_year}-{str(fy_start_year + 1)[-2:]}"
 
 
@@ -56,11 +81,11 @@ def available_fys(db: Session, category: str, fy_start: int) -> list[int]:
 
 
 def _classify(text: str, va_keywords, tag_keyword) -> str:
-    low = text.lower()
-    if tag_keyword and tag_keyword.lower() in low:
+    low = match_norm(text)
+    if tag_keyword and match_norm(tag_keyword) in low:
         return "tag"
     for kw in va_keywords:
-        if kw and kw.lower() in low:
+        if kw and match_norm(kw) in low:
             return "va"
     return "commercial"
 
@@ -158,7 +183,7 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
     for f in facts:
         if f.month not in keyset:
             continue
-        edit = edits.get(f.theme_raw, f.theme_raw).strip() or f.theme_raw
+        edit = clean_text(edits.get(f.theme_raw, f.theme_raw)).strip() or f.theme_raw
         node = tree[f.mother_brand][f.brand][edit]
         node["spend"][f.month] += f.spend
         node["freq"][f.month] += f.freq
@@ -264,9 +289,9 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
 
     return {
         "category": category,
-        "fy": fy_label(fy_start_year),
+        "fy": fy_label(fy_start_year, fy_start),
         "fy_start_year": fy_start_year,
-        "available_fys": [fy_label(y) for y in fys],
+        "available_fys": [fy_label(y, fy_start) for y in fys],
         "available_fy_years": fys,
         "month_keys": keys,
         "months": months_meta,

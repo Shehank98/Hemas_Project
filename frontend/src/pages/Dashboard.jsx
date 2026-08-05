@@ -79,7 +79,7 @@ export default function Dashboard({ categories, category, setCategory }) {
           </label>
           {summary && (
             <label className="field">
-              Financial year
+              Year
               <select
                 value={fy || ""}
                 onChange={(e) => {
@@ -226,7 +226,7 @@ function Group({ g, months }) {
 
 function Brand({ b, g, months, first }) {
   const rows = [];
-  const themeRows = b.themes.length ? b.themes : [{ text: "—", ytd: 0 }];
+  const themeRows = b.themes.length ? b.themes : [{ text: "", ytd: 0 }];
   themeRows.forEach((th, i) => {
     rows.push(
       <tr className="theme" key={"t" + i}>
@@ -288,7 +288,7 @@ function Kpis({ summary }) {
       <div className="kpi">
         <div className="k-label">Top SOS</div>
         <div className="k-val" style={{ fontSize: 18 }}>
-          {top ? `${top.mother_brand} · ${fmtPct(top.ytd)}` : "—"}
+          {top ? `${top.mother_brand} · ${fmtPct(top.ytd)}` : "-"}
         </div>
       </div>
     </div>

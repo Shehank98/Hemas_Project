@@ -10,8 +10,9 @@ from sqlalchemy.orm import Session
 from .models import Setting
 
 DEFAULTS = {
-    # Financial year starts in April (month index 4). YTD / column order use this.
-    "fy_start_month": 4,
+    # Summary year. 1 = calendar year (Jan-Dec, a new sheet each year). Set to
+    # another month (e.g. 4 = April) for an April-March financial year.
+    "fy_start_month": 1,
     # A theme is a Value-Add (bonus / free exposure) if its edited text contains
     # any of these (case-insensitive substring match).
     "va_keywords": ["Tag", "Value Add", "Value Adds", "DJ", "Scroll", "Bumper",

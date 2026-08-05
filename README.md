@@ -23,6 +23,14 @@ with **Postgres**.
 4. **Export** any category (or all as a zip) to a formatted `.xlsx` matching the
    `Asset_Update` template.
 
+### Summary year (calendar by default)
+
+Summaries are built **per year, one sheet each**. By default the year is the
+**calendar year (January–December)** — pick the year with the **Year** filter on
+the dashboard, and next year's data automatically forms a new year's summary.
+If you'd rather run an April–March financial year, change **Summary year starts**
+in Settings.
+
 ### Month completion & partial months
 
 Every upload carries an as-of date. A month shows as **partial** in the header
@@ -41,7 +49,10 @@ on top — no double counting.
 ### Value-Adds (VA), Tag, and ACD
 
 - In **Settings** you maintain the list of **VA keywords**. Any theme whose
-  (edited) text contains a VA keyword is treated as a value-add / bonus exposure.
+  (edited) text contains a VA keyword is treated as a value-add / bonus exposure
+  and moves out of the individual Commercial rows into the VA rows. Matching
+  ignores dash style and spacing, so a keyword like `-BB` catches `—BB`, `– BB`
+  and ` - BB` alike.
 - The dedicated **Tag** row collects VA themes matching the *Tag keyword*; all
   other VA themes roll into the **Value Adds** row. Non-VA themes list
   individually.
