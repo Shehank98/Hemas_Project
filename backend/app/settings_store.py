@@ -10,13 +10,15 @@ from sqlalchemy.orm import Session
 from .models import Setting
 
 DEFAULTS = {
-    # Summary year. 1 = calendar year (Jan-Dec, a new sheet each year). Set to
-    # another month (e.g. 4 = April) for an April-March financial year.
-    "fy_start_month": 1,
-    # A theme is a Value-Add (bonus / free exposure) if its edited text contains
-    # any of these (case-insensitive substring match).
-    "va_keywords": ["Tag", "Value Add", "Value Adds", "DJ", "Scroll", "Bumper",
-                    "Astons", "Crawler", "Squeeze", "L-Band"],
+    # Summary year start month. 4 = April-March financial year (label "2026-27").
+    # Set to 1 for a calendar year (Jan-Dec, label "2026").
+    "fy_start_month": 4,
+    # Exact commercial themes the user has marked as Value-Adds (picked from the
+    # populated theme list in Settings). These are grouped into the Value Adds row.
+    "va_themes": [],
+    # Optional substring keywords that also flag a theme as a Value-Add (kept for
+    # convenience; the primary mechanism is va_themes above).
+    "va_keywords": [],
     # Of the VA themes, those matching this keyword go into the dedicated "Tag"
     # row; every other VA theme is summed into the "Value Adds" row.
     "tag_keyword": "Tag",

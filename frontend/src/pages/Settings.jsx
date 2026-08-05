@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../api.js";
 
 const MONTHS = [
@@ -9,7 +9,6 @@ const MONTHS = [
 export default function Settings({ categories, defaultCategory }) {
   const [settings, setSettings] = useState(null);
   const [allBrands, setAllBrands] = useState([]);
-  const [newKw, setNewKw] = useState("");
   const [msg, setMsg] = useState("");
   const [err, setErr] = useState("");
   const [cat, setCat] = useState(defaultCategory || "");
@@ -41,7 +40,6 @@ export default function Settings({ categories, defaultCategory }) {
 
   if (!settings) return <div className="panel">Loading…</div>;
 
-  const va = settings.va_keywords || [];
   const subcat = settings.brand_subcategory || {};
 
   return (
@@ -49,52 +47,17 @@ export default function Settings({ categories, defaultCategory }) {
       {msg && <div className="notice ok">{msg}</div>}
       {err && <div className="notice err">{err}</div>}
 
+      <VaThemePicker settings={settings} saveGlobal={saveGlobal} />
+
       <div className="panel">
-        <h2>Value-Add (VA) themes</h2>
+        <h2>Tag &amp; year</h2>
         <p className="sub">
-          Any theme whose (edited) text contains one of these words counts as a
-          value-add. VA spend is excluded from <b>ACD (Com Only)</b> and rolled into
-          the <b>Tag</b> / <b>Value Adds</b> rows.
+          Themes matching the Tag keyword go into their own <b>Tag</b> row; the
+          themes you tick above are grouped into the <b>Value Adds</b> row.
         </p>
-        <div style={{ marginBottom: 10 }}>
-          {va.map((k) => (
-            <span className="chip" key={k}>
-              {k}
-              <button
-                onClick={() => saveGlobal({ va_keywords: va.filter((x) => x !== k) })}
-              >
-                ×
-              </button>
-            </span>
-          ))}
-        </div>
         <div className="row">
-          <input
-            type="text"
-            placeholder="Add keyword (e.g. Scroll)"
-            value={newKw}
-            onChange={(e) => setNewKw(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && newKw.trim()) {
-                saveGlobal({ va_keywords: [...new Set([...va, newKw.trim()])] });
-                setNewKw("");
-              }
-            }}
-          />
-          <button
-            onClick={() => {
-              if (newKw.trim()) {
-                saveGlobal({ va_keywords: [...new Set([...va, newKw.trim()])] });
-                setNewKw("");
-              }
-            }}
-          >
-            Add
-          </button>
-        </div>
-        <div className="row" style={{ marginTop: 16 }}>
           <label className="field">
-            "Tag" keyword (its own row; other VA → "Value Adds")
+            "Tag" keyword
             <input
               type="text"
               value={settings.tag_keyword || ""}
@@ -103,12 +66,10 @@ export default function Settings({ categories, defaultCategory }) {
             />
           </label>
           <label className="field">
-            Summary year starts (January = calendar year, Jan–Dec)
+            Summary year starts (January = calendar year)
             <select
               value={settings.fy_start_month || 4}
-              onChange={(e) =>
-                saveGlobal({ fy_start_month: Number(e.target.value) })
-              }
+              onChange={(e) => saveGlobal({ fy_start_month: Number(e.target.value) })}
             >
               {MONTHS.map((m, i) => (
                 <option key={i} value={i + 1}>{m}</option>
@@ -121,46 +82,45 @@ export default function Settings({ categories, defaultCategory }) {
       <div className="panel">
         <h2>Brand → Sub-category</h2>
         <p className="sub">
-          Group brands into sub-categories (column A in the export). Leave blank to
-          skip. Brands appear here once their data has been uploaded.
+          Optional grouping of brands into sub-categories. Brands appear once their
+          data has been uploaded.
         </p>
         {allBrands.length === 0 && (
           <p className="muted small">No brands yet — upload data first.</p>
         )}
-        <table className="grid">
-          <thead>
-            <tr>
-              <th>Brand</th>
-              <th>Sub-category</th>
-            </tr>
-          </thead>
-          <tbody>
-            {allBrands.map((b) => (
-              <tr key={b}>
-                <td>{b}</td>
-                <td>
-                  <input
-                    type="text"
-                    value={subcat[b] || ""}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        brand_subcategory: { ...subcat, [b]: e.target.value },
-                      })
-                    }
-                    onBlur={() => saveGlobal({ brand_subcategory: subcat })}
-                  />
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {allBrands.length > 0 && (
+          <table className="grid">
+            <thead>
+              <tr><th>Brand</th><th>Sub-category</th></tr>
+            </thead>
+            <tbody>
+              {allBrands.map((b) => (
+                <tr key={b}>
+                  <td>{b}</td>
+                  <td>
+                    <input
+                      type="text"
+                      value={subcat[b] || ""}
+                      onChange={(e) =>
+                        setSettings({
+                          ...settings,
+                          brand_subcategory: { ...subcat, [b]: e.target.value },
+                        })
+                      }
+                      onBlur={() => saveGlobal({ brand_subcategory: subcat })}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </div>
 
       {categories.length > 0 && (
         <div className="panel">
           <div className="row" style={{ marginBottom: 12 }}>
-            <h2 style={{ margin: 0 }}>Per-category settings</h2>
+            <h2 style={{ margin: 0 }}>Theme editing</h2>
             <label className="field">
               Category
               <select value={cat} onChange={(e) => setCat(e.target.value)}>
@@ -170,11 +130,96 @@ export default function Settings({ categories, defaultCategory }) {
               </select>
             </label>
           </div>
-          {cat && <ThemeEdits key={"t" + cat} category={cat} />}
-          {cat && <BrandRefs key={"r" + cat} category={cat} />}
+          {cat && <ThemeEdits key={cat} category={cat} />}
         </div>
       )}
     </>
+  );
+}
+
+function VaThemePicker({ settings, saveGlobal }) {
+  const [themes, setThemes] = useState([]);
+  const [q, setQ] = useState("");
+  const [loading, setLoading] = useState(true);
+  const selected = useMemo(
+    () => new Set((settings.va_themes || [])),
+    [settings.va_themes]
+  );
+
+  useEffect(() => {
+    api.allThemes().then((r) => {
+      setThemes(r.themes);
+      setLoading(false);
+    });
+  }, []);
+
+  function toggle(themeRaw) {
+    const next = new Set(selected);
+    if (next.has(themeRaw)) next.delete(themeRaw);
+    else next.add(themeRaw);
+    saveGlobal({ va_themes: [...next] });
+  }
+
+  const filtered = themes.filter(
+    (t) =>
+      !q ||
+      t.theme_raw.toLowerCase().includes(q.toLowerCase()) ||
+      (t.brand || "").toLowerCase().includes(q.toLowerCase())
+  );
+
+  return (
+    <div className="panel">
+      <h2>Value-Add (VA) themes</h2>
+      <p className="sub">
+        Every commercial theme in your data is listed below. Tick the ones that are
+        value-adds (bonus / free exposures). Ticked themes are grouped into the
+        <b> Value Adds</b> row and excluded from <b>ACD (Com Only)</b>. Changes apply
+        instantly across the dashboard and exports — no re-upload needed.
+      </p>
+      <div className="row" style={{ marginBottom: 8 }}>
+        <input
+          type="text"
+          placeholder="Search themes or brands…"
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          style={{ minWidth: 280 }}
+        />
+        <span className="pill">{selected.size} marked as VA</span>
+        <span className="muted small">{themes.length} themes total</span>
+      </div>
+      {loading && <p className="muted small">Loading themes…</p>}
+      {!loading && themes.length === 0 && (
+        <p className="muted small">No themes yet — upload data first.</p>
+      )}
+      <div className="table-wrap" style={{ maxHeight: 420, overflowY: "auto" }}>
+        <table className="grid">
+          <thead>
+            <tr>
+              <th style={{ width: 40 }}>VA</th>
+              <th>Theme</th>
+              <th>Brand</th>
+              <th>Category</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((t) => (
+              <tr key={t.theme_raw}>
+                <td>
+                  <input
+                    type="checkbox"
+                    checked={selected.has(t.theme_raw)}
+                    onChange={() => toggle(t.theme_raw)}
+                  />
+                </td>
+                <td className="small">{t.theme_raw}</td>
+                <td className="small muted">{t.brand}</td>
+                <td className="small muted">{t.category}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 
@@ -199,8 +244,7 @@ function ThemeEdits({ category }) {
   }
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <h3 style={{ margin: "0 0 4px" }}>Theme editing</h3>
+    <div>
       <p className="muted small">
         Rename a theme's display text. Themes sharing the same edited text within a
         brand merge into one row.
@@ -209,11 +253,7 @@ function ThemeEdits({ category }) {
       <div className="table-wrap" style={{ maxHeight: 360, overflowY: "auto" }}>
         <table className="grid">
           <thead>
-            <tr>
-              <th>Brand</th>
-              <th>Raw theme</th>
-              <th>Display text</th>
-            </tr>
+            <tr><th>Brand</th><th>Raw theme</th><th>Display text</th></tr>
           </thead>
           <tbody>
             {themes.map((t) => (
@@ -225,9 +265,7 @@ function ThemeEdits({ category }) {
                     type="text"
                     style={{ width: "100%", minWidth: 260 }}
                     defaultValue={t.edit_text}
-                    onChange={(e) =>
-                      setDirty({ ...dirty, [t.theme_raw]: e.target.value })
-                    }
+                    onChange={(e) => setDirty({ ...dirty, [t.theme_raw]: e.target.value })}
                   />
                 </td>
               </tr>
@@ -236,87 +274,9 @@ function ThemeEdits({ category }) {
         </table>
       </div>
       <div className="row" style={{ marginTop: 10 }}>
-        <button
-          className="primary"
-          disabled={!Object.keys(dirty).length}
-          onClick={save}
-        >
+        <button className="primary" disabled={!Object.keys(dirty).length} onClick={save}>
           Save theme edits
         </button>
-      </div>
-    </div>
-  );
-}
-
-function BrandRefs({ category }) {
-  const [brands, setBrands] = useState([]);
-  const [refs, setRefs] = useState({});
-  const [msg, setMsg] = useState("");
-
-  useEffect(() => {
-    (async () => {
-      const { brands } = await api.brands(category);
-      setBrands(brands);
-      const { refs } = await api.brandRefs(category);
-      const map = {};
-      refs.forEach((r) => (map[r.brand] = r));
-      setRefs(map);
-    })();
-  }, [category]);
-
-  async function save() {
-    const payload = brands.map((b) => ({
-      brand: b,
-      mont_avg: refs[b]?.mont_avg ?? null,
-      weekly_avg: refs[b]?.weekly_avg ?? null,
-    }));
-    await api.putBrandRefs({ category, refs: payload });
-    setMsg("Reference values saved.");
-    setTimeout(() => setMsg(""), 1500);
-  }
-
-  const upd = (b, k, v) =>
-    setRefs({ ...refs, [b]: { ...refs[b], [k]: v === "" ? null : Number(v) } });
-
-  return (
-    <div style={{ marginTop: 24 }}>
-      <h3 style={{ margin: "0 0 4px" }}>Reference columns (Mont Avg / Weekly Avg)</h3>
-      <p className="muted small">
-        Manually maintained per-brand reference spend shown in columns E/F.
-      </p>
-      {msg && <div className="notice ok">{msg}</div>}
-      <table className="grid">
-        <thead>
-          <tr>
-            <th>Brand</th>
-            <th>Mont Avg Spend</th>
-            <th>Weekly Avg Spend</th>
-          </tr>
-        </thead>
-        <tbody>
-          {brands.map((b) => (
-            <tr key={b}>
-              <td>{b}</td>
-              <td>
-                <input
-                  type="number"
-                  value={refs[b]?.mont_avg ?? ""}
-                  onChange={(e) => upd(b, "mont_avg", e.target.value)}
-                />
-              </td>
-              <td>
-                <input
-                  type="number"
-                  value={refs[b]?.weekly_avg ?? ""}
-                  onChange={(e) => upd(b, "weekly_avg", e.target.value)}
-                />
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div className="row" style={{ marginTop: 10 }}>
-        <button className="primary" onClick={save}>Save reference values</button>
       </div>
     </div>
   );

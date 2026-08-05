@@ -32,6 +32,7 @@ export const api = {
     }),
   brands: (category) =>
     req(`/api/brands` + (category ? `?category=${encodeURIComponent(category)}` : "")),
+  allThemes: () => req("/api/all-themes"),
   themes: (category) => req(`/api/themes?category=${encodeURIComponent(category)}`),
   putThemeEdits: (payload) =>
     req("/api/theme-edits", {

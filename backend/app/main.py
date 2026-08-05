@@ -227,6 +227,22 @@ def get_brands(category: str | None = None, db: Session = Depends(get_db)):
     return {"brands": brands, "mother_brands": mothers}
 
 
+@app.get("/api/all-themes")
+def get_all_themes(db: Session = Depends(get_db)):
+    """Every distinct commercial theme across all categories, for the VA picker."""
+    rows = (
+        db.query(Fact.theme_raw, Fact.brand, Fact.category)
+        .distinct()
+        .all()
+    )
+    seen = {}
+    for theme, brand, cat in rows:
+        if theme not in seen:
+            seen[theme] = {"theme_raw": theme, "brand": brand, "category": cat}
+    themes = sorted(seen.values(), key=lambda x: x["theme_raw"].lower())
+    return {"themes": themes}
+
+
 @app.get("/api/themes")
 def get_themes(category: str, db: Session = Depends(get_db)):
     edits = {
@@ -353,7 +369,13 @@ def put_brand_refs(payload: dict, db: Session = Depends(get_db)):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    from .db import ENGINE_URL
+    backend = "postgres" if "postgresql" in ENGINE_URL else "sqlite"
+    return {
+        "status": "ok",
+        "database": backend,
+        "persistent": backend == "postgres",
+    }
 
 
 # --------------------------------------------------------------------------- #

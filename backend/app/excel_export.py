@@ -1,7 +1,13 @@
 """Generate the summary workbook (one sheet per financial year) for a category.
 
-Consumes the dict from summary.build_summary so the file matches the on-screen
-table exactly. Styling mirrors the client's Asset_Update sample.
+Layout mirrors the client's Hair-Oil sample exactly:
+
+    CATEGORY | BRAND | COMMERCIAL | <year> months... | YTD
+
+- No Mont/Weekly-Avg columns.
+- Only the months that have data are shown (year start -> current month).
+- Per brand: commercial themes, optional Tag / Value Adds rows, Total Spends,
+  ACD (Com Only), ACD (All Exp); then TOTAL CATEGORY SPEND and SOS %.
 """
 import io
 
@@ -9,27 +15,24 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-# Colours lifted from the client's sample workbook.
-FILL_MONTH = PatternFill("solid", fgColor="FADAC6")
-FILL_ACD = PatternFill("solid", fgColor="F09156")
-FILL_MBTOTAL = PatternFill("solid", fgColor="C2E49C")
-FILL_CATTOTAL = PatternFill("solid", fgColor="B44E10")
-FILL_HEADER = PatternFill("solid", fgColor="FADAC6")
+# Green palette matching the client's sample.
+FILL_HEADER = PatternFill("solid", fgColor="00B050")   # bright green header
+FILL_TOTAL = PatternFill("solid", fgColor="E2EFC7")    # pale yellow-green Total row
+FILL_ACD = PatternFill("solid", fgColor="C6EFCE")      # light green ACD rows
+FILL_CATTOTAL = PatternFill("solid", fgColor="00B050")
+FILL_SOS = PatternFill("solid", fgColor="C6EFCE")
 
 FMT_INT = '_(* #,##0_);_(* (#,##0);_(* "-"??_);_(@_)'
-FMT_DEC = '_(* #,##0.00_);_(* (#,##0.00);_(* "-"??_);_(@_)'
 FMT_PCT = "0%"
 
-THIN = Side(style="thin", color="D9D9D9")
+THIN = Side(style="thin", color="BFBFBF")
 BORDER = Border(left=THIN, right=THIN, top=THIN, bottom=THIN)
-
-
-def _months_span():
-    return 12
+CENTER = Alignment(horizontal="center", vertical="center", wrap_text=True)
+VCENTER = Alignment(vertical="center", wrap_text=True)
+LEFT = Alignment(horizontal="left", vertical="center")
 
 
 def build_workbook(summaries: list[dict]) -> bytes:
-    """`summaries` = list of build_summary() dicts (one per FY) for one category."""
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
     for summ in summaries:
@@ -42,144 +45,150 @@ def build_workbook(summaries: list[dict]) -> bytes:
 
 
 def _write_sheet(wb, summ):
-    ws = wb.create_sheet(title=summ["fy"])
+    title = summ["fy"][:31]
+    ws = wb.create_sheet(title=title)
     keys = summ["month_keys"]
-    n = len(keys)
-    first_m = 7  # column G
-    ytd_col = first_m + n  # column after the 12 months
+    n = max(len(keys), 1)
+    FIRST_M = 4              # column D
+    ytd_col = FIRST_M + n    # column after the months
 
-    def col(i):
-        return get_column_letter(i)
-
-    # ---- top header rows ----
-    ws.cell(row=2, column=1, value="CATEGORY").font = Font(bold=True, size=10)
-    ws.cell(row=2, column=2, value="CATEGORY").font = Font(bold=True, size=10)
-    ws.cell(row=2, column=3, value="BRAND").font = Font(bold=True, size=10)
-    ws.cell(row=2, column=4, value="COMMERCIAL").font = Font(bold=True, size=10)
-    c = ws.cell(row=2, column=first_m, value=summ["fy"].replace("-", "/"))
-    c.font = Font(bold=True, size=10)
-    ws.merge_cells(start_row=2, start_column=first_m, end_row=2, end_column=ytd_col - 1)
-    ws.cell(row=2, column=ytd_col, value="YTD").font = Font(bold=True, size=10)
-
-    ws.cell(row=3, column=5, value="Mont Avg Spend").font = Font(bold=True, size=9)
-    ws.cell(row=3, column=6, value="Weekly Avg Spend").font = Font(bold=True, size=9)
+    # ---------- header (2 rows) ----------
+    ws.cell(row=1, column=1, value="CATEGORY")
+    ws.cell(row=1, column=2, value="BRAND")
+    ws.cell(row=1, column=3, value="COMMERCIAL")
+    ws.merge_cells(start_row=1, start_column=1, end_row=2, end_column=1)
+    ws.merge_cells(start_row=1, start_column=2, end_row=2, end_column=2)
+    ws.merge_cells(start_row=1, start_column=3, end_row=2, end_column=3)
+    yr = ws.cell(row=1, column=FIRST_M, value=summ["fy"].replace("-", "/"))
+    ws.merge_cells(start_row=1, start_column=FIRST_M, end_row=1, end_column=ytd_col - 1)
+    ws.cell(row=1, column=ytd_col, value="YTD")
+    ws.merge_cells(start_row=1, start_column=ytd_col, end_row=2, end_column=ytd_col)
     for i, mm in enumerate(summ["months"]):
-        cell = ws.cell(row=3, column=first_m + i, value=mm["header"])
-        cell.font = Font(bold=True, size=10)
-        cell.fill = FILL_MONTH
-        cell.alignment = Alignment(horizontal="center", wrap_text=True)
+        ws.cell(row=2, column=FIRST_M + i, value=mm["header"])
+    for r in (1, 2):
+        for c in range(1, ytd_col + 1):
+            cell = ws.cell(row=r, column=c)
+            cell.font = Font(bold=True, size=10)
+            cell.fill = FILL_HEADER
+            cell.alignment = CENTER
+            cell.border = BORDER
 
-    row = 4
+    row = 3
+    data_start = row
 
-    def set_months(r, rowdata, fmt=FMT_INT, fill=None, bold=False, pct=False):
+    def put_row(r, label_col, label, data, *, fill=None, bold=False, blank_zero=False,
+                pct=False, show_ytd=True):
+        cell = ws.cell(row=r, column=label_col, value=label)
+        cell.font = Font(bold=bold, size=10)
+        cell.alignment = LEFT
+        if fill:
+            cell.fill = fill
         for i, k in enumerate(keys):
-            v = rowdata.get(k)
-            cell = ws.cell(row=r, column=first_m + i)
-            cell.value = v
-            cell.number_format = FMT_PCT if pct else fmt
-            cell.font = Font(bold=bold, size=10)
+            v = data.get(k)
+            if blank_zero and (v == 0 or v is None):
+                v = None
+            cc = ws.cell(row=r, column=FIRST_M + i, value=v)
+            cc.number_format = FMT_PCT if pct else FMT_INT
+            cc.font = Font(bold=bold, size=10)
             if fill:
-                cell.fill = fill
-        yc = ws.cell(row=r, column=ytd_col, value=rowdata.get("ytd"))
-        yc.number_format = FMT_PCT if pct else fmt
+                cc.fill = fill
+            cc.border = BORDER
+        yv = data.get("ytd") if show_ytd else None
+        if blank_zero and (yv == 0 or yv is None):
+            yv = None
+        yc = ws.cell(row=r, column=ytd_col, value=yv)
+        yc.number_format = FMT_PCT if pct else FMT_INT
         yc.font = Font(bold=bold, size=10)
         if fill:
             yc.fill = fill
+        yc.border = BORDER
+        # borders on empty text columns for a clean grid
+        for c in range(1, label_col):
+            ws.cell(row=r, column=c).border = BORDER
 
     for g in summ["groups"]:
-        group_start = row
         for b in g["brands"]:
             brand_start = row
-            # brand label (col C) + subcategory (col A) + category (col B)
-            bc = ws.cell(row=row, column=3, value=b["brand"])
-            bc.font = Font(bold=True, size=10)
-            ws.cell(row=row, column=1, value=g.get("subcategory") or None)
-            ws.cell(row=row, column=2, value=summ["category"])
-            if b.get("mont_avg") is not None:
-                mc = ws.cell(row=row, column=5, value=b["mont_avg"])
-                mc.number_format = FMT_DEC
-            if b.get("weekly_avg") is not None:
-                wc = ws.cell(row=row, column=6, value=b["weekly_avg"])
-                wc.number_format = FMT_DEC
-
-            # commercial theme rows
-            for th in b["themes"]:
-                ws.cell(row=row, column=4, value=th["text"]).font = Font(size=10)
-                set_months(row, th, fmt=FMT_INT)
+            # commercial themes with any spend in view
+            themes = [t for t in b["themes"] if (t.get("ytd") or 0) != 0]
+            ws.cell(row=brand_start, column=2, value=b["brand"]).font = Font(bold=True, size=10)
+            for t in themes:
+                put_row(row, 3, t["text"], t, blank_zero=True)
                 row += 1
-            if not b["themes"]:
-                row += 1  # keep at least the brand anchor row
+            if not themes:
+                # keep an anchor row so the brand label has a cell
+                put_row(row, 3, "", {}, blank_zero=True)
+                row += 1
+            if (b["tag"].get("ytd") or 0) != 0:
+                put_row(row, 3, "Tag", b["tag"], blank_zero=True)
+                row += 1
+            if (b["value_adds"].get("ytd") or 0) != 0:
+                put_row(row, 3, "Value Adds", b["value_adds"], blank_zero=True)
+                row += 1
+            put_row(row, 3, "Total Spends (000)", b["total"], fill=FILL_TOTAL, bold=True)
+            row += 1
+            put_row(row, 3, "ACD (Com Only)", b["acd_com"], fill=FILL_ACD, bold=True,
+                    show_ytd=False)
+            row += 1
+            put_row(row, 3, "ACD (All Exp)", b["acd_all"], fill=FILL_ACD, bold=True,
+                    show_ytd=False)
+            row += 1
+            # merge the brand label down its block
+            ws.merge_cells(start_row=brand_start, start_column=2, end_row=row - 1, end_column=2)
+            ws.cell(row=brand_start, column=2).alignment = CENTER
 
-            # Tag row
-            ws.cell(row=row, column=4, value="Tag").font = Font(bold=True, size=10)
-            set_months(row, b["tag"], fmt=FMT_INT)
-            row += 1
-            # Value Adds row
-            ws.cell(row=row, column=4, value="Value Adds").font = Font(bold=True, size=10)
-            set_months(row, b["value_adds"], fmt=FMT_INT)
-            row += 1
-            # Total Spends
-            tc = ws.cell(row=row, column=4, value="Total Spends (000)")
-            tc.font = Font(bold=True, size=10)
-            set_months(row, b["total"], fmt=FMT_INT, bold=True)
-            row += 1
-            # ACD Com Only
-            ac = ws.cell(row=row, column=4, value="ACD (Com Only)")
-            ac.font = Font(bold=True, size=10)
-            ac.fill = FILL_ACD
-            set_months(row, b["acd_com"], fmt=FMT_INT, fill=FILL_ACD, bold=True)
-            row += 1
-            # ACD All Exp
-            ac2 = ws.cell(row=row, column=4, value="ACD (All Exp)")
-            ac2.font = Font(bold=True, size=10)
-            ac2.fill = FILL_ACD
-            set_months(row, b["acd_all"], fmt=FMT_INT, fill=FILL_ACD, bold=True)
-            row += 1
-
-            if brand_start < row - 1 and len(b["themes"]) > 1:
-                ws.merge_cells(start_row=brand_start, start_column=3,
-                               end_row=brand_start, end_column=3)
-
-        # mother-brand rollup
         if g["show_total"]:
-            tc = ws.cell(row=row, column=3, value=f"Total {g['mother_brand']}")
-            tc.font = Font(bold=True, size=10)
-            tc.fill = FILL_MBTOTAL
-            if g["total"].get("mont_avg") is not None:
-                mc = ws.cell(row=row, column=5, value=g["total"]["mont_avg"])
-                mc.number_format = FMT_DEC
-                mc.fill = FILL_MBTOTAL
-            if g["total"].get("weekly_avg") is not None:
-                wc = ws.cell(row=row, column=6, value=g["total"]["weekly_avg"])
-                wc.number_format = FMT_DEC
-                wc.fill = FILL_MBTOTAL
-            set_months(row, g["total"], fmt=FMT_INT, fill=FILL_MBTOTAL, bold=True)
+            put_row(row, 2, f"Total {g['mother_brand']}", g["total"],
+                    fill=FILL_TOTAL, bold=True)
             row += 1
-            tac = ws.cell(row=row, column=3, value=f"Total {g['mother_brand']} - ACD")
-            tac.font = Font(bold=True, size=10)
-            tac.fill = FILL_ACD
-            set_months(row, g["total_acd"], fmt=FMT_INT, fill=FILL_ACD, bold=True)
+            put_row(row, 2, f"Total {g['mother_brand']} - ACD", g["total_acd"],
+                    fill=FILL_ACD, bold=True, show_ytd=False)
             row += 1
 
-    # ---- TOTAL CATEGORY SPEND + SOS ----
+    data_end = row - 1
+    # merge CATEGORY (product group) down the whole block
+    if data_end >= data_start:
+        ws.cell(row=data_start, column=1, value=summ["category"]).font = Font(bold=True, size=10)
+        ws.merge_cells(start_row=data_start, start_column=1, end_row=data_end, end_column=1)
+        ws.cell(row=data_start, column=1).alignment = CENTER
+
+    # ---------- TOTAL CATEGORY SPEND ----------
+    put_row(row, 1, "TOTAL CATEGORY SPEND", summ["category_total"],
+            fill=FILL_CATTOTAL, bold=True)
+    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=3)
+    for c in range(1, ytd_col + 1):
+        ws.cell(row=row, column=c).fill = FILL_CATTOTAL
+        ws.cell(row=row, column=c).border = BORDER
+    ws.cell(row=row, column=1).alignment = CENTER
     row += 1
-    tcell = ws.cell(row=row, column=3, value="TOTAL CATEGORY SPEND")
-    tcell.font = Font(bold=True, size=10, color="FFFFFF")
-    tcell.fill = FILL_CATTOTAL
-    set_months(row, summ["category_total"], fmt=FMT_INT, fill=FILL_CATTOTAL, bold=True)
-    for i in range(1, ytd_col + 1):
-        ws.cell(row=row, column=i).fill = FILL_CATTOTAL
-    row += 1
+
+    # ---------- SOS % ----------
+    sos_start = row
     for s in summ["sos"]:
-        ws.cell(row=row, column=3, value=s["mother_brand"]).font = Font(size=10)
-        ws.cell(row=row, column=4, value="SOS %").font = Font(bold=True, size=10)
-        set_months(row, s, pct=True, fill=FILL_HEADER)
+        ws.cell(row=row, column=2, value=s["mother_brand"]).font = Font(bold=True, size=10)
+        ws.cell(row=row, column=2).alignment = LEFT
+        ws.cell(row=row, column=2).fill = FILL_SOS
+        put_row(row, 3, "", s, fill=FILL_SOS, pct=True)
+        ws.cell(row=row, column=1).fill = FILL_SOS
         row += 1
+    # merge "SOS %" label across the SOS rows (column C)
+    if row - 1 >= sos_start:
+        ws.cell(row=sos_start, column=3, value="SOS %").font = Font(bold=True, size=10)
+        ws.merge_cells(start_row=sos_start, start_column=3, end_row=row - 1, end_column=3)
+        ws.cell(row=sos_start, column=3).alignment = CENTER
+    # final 100% total row
+    total_pct = {k: (1.0 if any(s.get(k) for s in summ["sos"]) else None) for k in keys}
+    total_pct["ytd"] = 1.0 if summ["sos"] else None
+    put_row(row, 3, "", total_pct, fill=FILL_SOS, pct=True)
+    for c in (1, 2):
+        ws.cell(row=row, column=c).fill = FILL_SOS
+        ws.cell(row=row, column=c).border = BORDER
+    row += 1
 
-    # ---- column widths ----
-    widths = {1: 14, 2: 14, 3: 22, 4: 66, 5: 12, 6: 12}
-    for i in range(first_m, ytd_col + 1):
-        widths[i] = 10
+    # ---------- widths / freeze ----------
+    widths = {1: 15, 2: 24, 3: 60}
+    for i in range(FIRST_M, ytd_col + 1):
+        widths[i] = 11
     for i, w in widths.items():
         ws.column_dimensions[get_column_letter(i)].width = w
-    ws.freeze_panes = f"{col(first_m)}4"
+    ws.freeze_panes = f"{get_column_letter(FIRST_M)}3"

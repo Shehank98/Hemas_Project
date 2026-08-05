@@ -80,11 +80,13 @@ def available_fys(db: Session, category: str, fy_start: int) -> list[int]:
     return sorted({fy_of_month(r[0], fy_start) for r in rows}, reverse=True)
 
 
-def _classify(text: str, va_keywords, tag_keyword) -> str:
+def _classify(text: str, va_theme_set, va_keywords, tag_keyword) -> str:
     low = match_norm(text)
     if tag_keyword and match_norm(tag_keyword) in low:
         return "tag"
-    for kw in va_keywords:
+    if low in va_theme_set:  # exact theme picked in Settings
+        return "va"
+    for kw in va_keywords:  # optional substring fallback
         if kw and match_norm(kw) in low:
             return "va"
     return "commercial"
@@ -112,6 +114,7 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
     cfg = settings_store.get_all(db)
     fy_start = int(cfg.get("fy_start_month", 4))
     va_keywords = cfg.get("va_keywords", [])
+    va_theme_set = {match_norm(t) for t in cfg.get("va_themes", []) if t}
     tag_keyword = cfg.get("tag_keyword", "Tag")
     brand_subcat = cfg.get("brand_subcategory", {})
     mb_alias = cfg.get("mother_brand_alias", {})
@@ -121,7 +124,19 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
         fy_start_year = fys[0] if fys else fy_of_month(
             date.today().strftime("%Y-%m"), fy_start
         )
-    keys = fy_month_keys(fy_start_year, fy_start)
+    full_keys = fy_month_keys(fy_start_year, fy_start)
+
+    # Only show months from the year start up to the latest month that has data
+    # (so the sheet ends at the current partial month, not 12 empty columns).
+    all_months = {
+        r[0]
+        for r in db.query(Fact.month).filter(Fact.category == category).distinct()
+    }
+    last_idx = -1
+    for i, k in enumerate(full_keys):
+        if k in all_months:
+            last_idx = i
+    keys = full_keys[: last_idx + 1] if last_idx >= 0 else full_keys[:1]
     keyset = set(keys)
 
     # --- theme edits + month status + brand refs ---
@@ -143,10 +158,7 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
         .filter(Fact.category == category, Fact.month.in_(keys))
         .all()
     )
-    months_with_data = {
-        r[0]
-        for r in db.query(Fact.month).filter(Fact.category == category).distinct()
-    }
+    months_with_data = all_months
 
     # --- month headers (partial vs complete) ---
     months_meta = []
@@ -219,7 +231,7 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
 
             for text in sorted(themes_node.keys()):
                 node = themes_node[text]
-                bucket = _classify(text, va_keywords, tag_keyword)
+                bucket = _classify(text, va_theme_set, va_keywords, tag_keyword)
                 for k in keys:
                     sp = node["spend"].get(k, 0.0)
                     fr = node["freq"].get(k, 0)

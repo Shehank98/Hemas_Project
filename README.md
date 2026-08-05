@@ -25,11 +25,12 @@ with **Postgres**.
 
 ### Summary year (calendar by default)
 
-Summaries are built **per year, one sheet each**. By default the year is the
-**calendar year (January–December)** — pick the year with the **Year** filter on
-the dashboard, and next year's data automatically forms a new year's summary.
-If you'd rather run an April–March financial year, change **Summary year starts**
-in Settings.
+Summaries are built **per year, one sheet each**. By default the year runs
+**April–March** (label `2026-27`); switch to a calendar year via **Summary year
+starts** in Settings. Pick the year with the **Year** filter, and next year's data
+automatically forms a new year's summary. Only the months that have data are shown
+(year start → current month), so there are no empty future columns. The export
+layout is `CATEGORY | BRAND | COMMERCIAL | months | YTD`.
 
 ### Month completion & partial months
 
@@ -48,11 +49,11 @@ on top — no double counting.
 
 ### Value-Adds (VA), Tag, and ACD
 
-- In **Settings** you maintain the list of **VA keywords**. Any theme whose
-  (edited) text contains a VA keyword is treated as a value-add / bonus exposure
-  and moves out of the individual Commercial rows into the VA rows. Matching
-  ignores dash style and spacing, so a keyword like `-BB` catches `—BB`, `– BB`
-  and ` - BB` alike.
+- In **Settings → Value-Add (VA) themes** every commercial theme in your data is
+  listed with a checkbox. **Tick the themes that are value-adds** — they're grouped
+  into the **Value Adds** row and excluded from ACD (Com Only). Changes apply
+  instantly, no re-upload. (Matching ignores dash style/spacing, so `—BB`, `– BB`
+  and ` - BB` are treated the same.)
 - The dedicated **Tag** row collects VA themes matching the *Tag keyword*; all
   other VA themes roll into the **Value Adds** row. Non-VA themes list
   individually.
