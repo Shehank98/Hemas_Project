@@ -17,4 +17,5 @@ COPY backend/ ./backend/
 COPY --from=frontend /app/backend/app/static ./backend/app/static
 WORKDIR /app/backend
 ENV PORT=8000
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+# Use a shell so ${PORT} (injected by Railway) is expanded at runtime.
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
