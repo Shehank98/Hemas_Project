@@ -188,9 +188,22 @@ def delete_upload(batch_id: int, db: Session = Depends(get_db)):
     deleted = (
         db.query(Fact).filter(Fact.batch_id == batch_id).delete(synchronize_session=False)
     )
-    # Remove month-status rows for (category, month) that now have no data.
     cats = [c for c in (batch.categories or "").split(",") if c]
     months = [m for m in (batch.months or "").split(",") if m]
+    # Legacy fallback: uploads made before per-upload tracking existed have no
+    # batch_id, so also remove any UNOWNED rows for this upload's media/months.
+    if batch.media_type and cats and months:
+        deleted += (
+            db.query(Fact)
+            .filter(
+                Fact.batch_id.is_(None),
+                Fact.media_type == batch.media_type,
+                Fact.category.in_(cats),
+                Fact.month.in_(months),
+            )
+            .delete(synchronize_session=False)
+        )
+    # Remove month-status rows for (category, month) that now have no data.
     for cat in cats:
         for month in months:
             remaining = (

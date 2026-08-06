@@ -71,8 +71,11 @@ def _write_sheet(wb, summ, pal):
     ws = wb.create_sheet(title=summ["fy"][:31])
     keys = summ["month_keys"]
     n = len(keys)
-    FIRST_M = 7             # column G
-    ytd_col = FIRST_M + n   # column S when 12 months
+    # Columns: 1 sub-cat | 2 category | 3 mother brand | 4 brand | 5 commercial |
+    #          6 mont avg | 7 weekly avg | 8.. months | YTD
+    C_SUB, C_CAT, C_MB, C_BRAND, C_COM, C_MONT, C_WEEK = 1, 2, 3, 4, 5, 6, 7
+    FIRST_M = 8
+    ytd_col = FIRST_M + n
 
     f_head = _fill(pal["head"])
     f_month = _fill(pal["month"])
@@ -93,19 +96,20 @@ def _write_sheet(wb, summ, pal):
         cell.border = BORDER
         return cell
 
-    H(2, 1, "CATEGORY"); ws.merge_cells("A2:A3")
-    H(2, 2, "CATEGORY"); ws.merge_cells("B2:B3")
-    H(2, 3, "BRAND"); ws.merge_cells("C2:C3")
-    H(2, 4, "COMMERCIAL"); ws.merge_cells("D2:D3")
-    H(2, 5, "2022/23")
-    ws.merge_cells(start_row=2, start_column=5, end_row=2, end_column=6)
+    H(2, C_SUB, "CATEGORY"); ws.merge_cells("A2:A3")
+    H(2, C_CAT, "CATEGORY"); ws.merge_cells("B2:B3")
+    H(2, C_MB, "MOTHER BRAND"); ws.merge_cells("C2:C3")
+    H(2, C_BRAND, "BRAND"); ws.merge_cells("D2:D3")
+    H(2, C_COM, "COMMERCIAL"); ws.merge_cells("E2:E3")
+    H(2, C_MONT, "2022/23")
+    ws.merge_cells(start_row=2, start_column=C_MONT, end_row=2, end_column=C_WEEK)
     H(2, FIRST_M, summ["fy"].replace("-", "/"))
     ws.merge_cells(start_row=2, start_column=FIRST_M, end_row=2, end_column=ytd_col - 1)
     H(2, ytd_col, "YTD"); ws.merge_cells(start_row=2, start_column=ytd_col,
                                          end_row=3, end_column=ytd_col)
-    e = ws.cell(row=3, column=5, value="Mont Avg Spend"); e.font = head_font
+    e = ws.cell(row=3, column=C_MONT, value="Mont Avg Spend"); e.font = head_font
     e.fill = f_head; e.alignment = CENTER; e.border = BORDER
-    f = ws.cell(row=3, column=6, value="Weekly Avg Spend"); f.font = head_font
+    f = ws.cell(row=3, column=C_WEEK, value="Weekly Avg Spend"); f.font = head_font
     f.fill = f_head; f.alignment = CENTER; f.border = BORDER
     for i, mm in enumerate(summ["months"]):
         cell = ws.cell(row=3, column=FIRST_M + i, value=mm["header"])
@@ -157,72 +161,80 @@ def _write_sheet(wb, summ, pal):
             brand_start = row
             themes = b["themes"] if b["themes"] else [{"text": ""}]
             for i, t in enumerate(themes):
-                label(row, 4, t.get("text", ""))
-                borders(row, 4)
+                label(row, C_COM, t.get("text", ""))
+                borders(row, C_COM)
                 if i == 0:
                     if b.get("mont_avg") is not None:
-                        mc = ws.cell(row=row, column=5, value=b["mont_avg"])
+                        mc = ws.cell(row=row, column=C_MONT, value=b["mont_avg"])
                         mc.number_format = FMT_DEC
                     if b.get("weekly_avg") is not None:
-                        wc = ws.cell(row=row, column=6, value=b["weekly_avg"])
+                        wc = ws.cell(row=row, column=C_WEEK, value=b["weekly_avg"])
                         wc.number_format = FMT_DEC
                 months_row(row, t, blank_zero=True)
                 row += 1
-            label(row, 4, "Tag", bold=False); borders(row, 4)
+            label(row, C_COM, "Tag"); borders(row, C_COM)
             months_row(row, b["tag"], blank_zero=True); row += 1
-            label(row, 4, "Value Adds", bold=False); borders(row, 4)
+            label(row, C_COM, "Value Adds"); borders(row, C_COM)
             months_row(row, b["value_adds"], blank_zero=True); row += 1
-            label(row, 4, "Total Spends (000)", bold=True, fill=f_total); borders(row, 4)
+            label(row, C_COM, "Total Spends (000)", bold=True, fill=f_total); borders(row, C_COM)
             months_row(row, b["total"], bold=True, fill=f_total); row += 1
-            label(row, 4, "ACD (Com Only)", bold=True, fill=f_acd); borders(row, 4)
+            label(row, C_COM, "ACD (Com Only)", bold=True, fill=f_acd); borders(row, C_COM)
             months_row(row, b["acd_com"], bold=True, fill=f_acd, show_ytd=False); row += 1
-            label(row, 4, "ACD (All Exp)", bold=True, fill=f_acd); borders(row, 4)
+            label(row, C_COM, "ACD (All Exp)", bold=True, fill=f_acd); borders(row, C_COM)
             months_row(row, b["acd_all"], bold=True, fill=f_acd, show_ytd=False); row += 1
-            # brand label merged down its block (column C)
-            label(brand_start, 3, b["brand"], bold=True)
+            # brand label merged down its block (column D)
+            label(brand_start, C_BRAND, b["brand"], bold=True)
             if row - 1 > brand_start:
-                ws.merge_cells(start_row=brand_start, start_column=3,
-                               end_row=row - 1, end_column=3)
-            ws.cell(row=brand_start, column=3).alignment = CENTER
+                ws.merge_cells(start_row=brand_start, start_column=C_BRAND,
+                               end_row=row - 1, end_column=C_BRAND)
+            ws.cell(row=brand_start, column=C_BRAND).alignment = CENTER
 
         if g["show_total"]:
-            label(row, 3, f"Total {g['mother_brand']}", bold=True, fill=f_mbt)
-            ws.cell(row=row, column=3).alignment = CENTER
-            for c in (1, 2, 4):
+            label(row, C_BRAND, f"Total {g['mother_brand']}", bold=True, fill=f_mbt)
+            ws.cell(row=row, column=C_BRAND).alignment = CENTER
+            for c in (C_SUB, C_CAT, C_COM):
                 ws.cell(row=row, column=c).fill = f_mbt
                 ws.cell(row=row, column=c).border = BORDER
             if g["total"].get("mont_avg") is not None:
-                mc = ws.cell(row=row, column=5, value=g["total"]["mont_avg"])
+                mc = ws.cell(row=row, column=C_MONT, value=g["total"]["mont_avg"])
                 mc.number_format = FMT_DEC; mc.fill = f_mbt
             if g["total"].get("weekly_avg") is not None:
-                wc = ws.cell(row=row, column=6, value=g["total"]["weekly_avg"])
+                wc = ws.cell(row=row, column=C_WEEK, value=g["total"]["weekly_avg"])
                 wc.number_format = FMT_DEC; wc.fill = f_mbt
             months_row(row, g["total"], bold=True, fill=f_mbt); row += 1
-            label(row, 3, f"Total {g['mother_brand']} - ACD", bold=True, fill=f_acd)
-            for c in (1, 2, 4, 5, 6):
+            label(row, C_BRAND, f"Total {g['mother_brand']} - ACD", bold=True, fill=f_acd)
+            for c in (C_SUB, C_CAT, C_COM, C_MONT, C_WEEK):
                 ws.cell(row=row, column=c).fill = f_acd
                 ws.cell(row=row, column=c).border = BORDER
             months_row(row, g["total_acd"], bold=True, fill=f_acd, show_ytd=False); row += 1
 
+        group_end = row - 1
+        # mother brand (column C) merged across the group
+        label(group_start, C_MB, g["mother_brand"], bold=True)
+        if group_end > group_start:
+            ws.merge_cells(start_row=group_start, start_column=C_MB,
+                           end_row=group_end, end_column=C_MB)
+        ws.cell(row=group_start, column=C_MB).alignment = CENTER
         # sub-category (column A) merged for the group
         if g.get("subcategory"):
-            label(group_start, 1, g["subcategory"], bold=True)
-            if row - 1 > group_start:
-                ws.merge_cells(start_row=group_start, start_column=1,
-                               end_row=row - 1, end_column=1)
-            ws.cell(row=group_start, column=1).alignment = CENTER
+            label(group_start, C_SUB, g["subcategory"], bold=True)
+            if group_end > group_start:
+                ws.merge_cells(start_row=group_start, start_column=C_SUB,
+                               end_row=group_end, end_column=C_SUB)
+            ws.cell(row=group_start, column=C_SUB).alignment = CENTER
 
     data_end = row - 1
     # category (column B) merged across the whole block
     if data_end >= data_start:
-        label(data_start, 2, summ["category"], bold=True)
-        ws.merge_cells(start_row=data_start, start_column=2, end_row=data_end, end_column=2)
-        ws.cell(row=data_start, column=2).alignment = CENTER
+        label(data_start, C_CAT, summ["category"], bold=True)
+        ws.merge_cells(start_row=data_start, start_column=C_CAT,
+                       end_row=data_end, end_column=C_CAT)
+        ws.cell(row=data_start, column=C_CAT).alignment = CENTER
 
     # ---------- TOTAL CATEGORY SPEND ----------
-    tc = ws.cell(row=row, column=1, value="TOTAL CATEGORY SPEND")
+    tc = ws.cell(row=row, column=C_SUB, value="TOTAL CATEGORY SPEND")
     tc.font = dark_font; tc.alignment = CENTER
-    ws.merge_cells(start_row=row, start_column=1, end_row=row, end_column=6)
+    ws.merge_cells(start_row=row, start_column=C_SUB, end_row=row, end_column=C_WEEK)
     for c in range(1, ytd_col + 1):
         ws.cell(row=row, column=c).fill = f_cat
         ws.cell(row=row, column=c).border = BORDER
@@ -235,28 +247,28 @@ def _write_sheet(wb, summ, pal):
     # ---------- SOS % ----------
     sos_start = row
     for s in summ["sos"]:
-        label(row, 3, s["mother_brand"], bold=True, fill=f_sos)
-        for c in (1, 2):
+        label(row, C_MB, s["mother_brand"], bold=True, fill=f_sos)
+        for c in (C_SUB, C_CAT, C_BRAND, C_COM):
             ws.cell(row=row, column=c).fill = f_sos
             ws.cell(row=row, column=c).border = BORDER
-        ws.cell(row=row, column=4).fill = f_sos
-        ws.cell(row=row, column=4).border = BORDER
         months_row(row, s, pct=True, fill=f_sos)
         row += 1
     if row - 1 >= sos_start:
-        lc = ws.cell(row=sos_start, column=4, value="SOS %")
+        lc = ws.cell(row=sos_start, column=C_COM, value="SOS %")
         lc.font = Font(bold=True, size=10); lc.alignment = CENTER
-        ws.merge_cells(start_row=sos_start, start_column=4, end_row=row - 1, end_column=4)
+        ws.merge_cells(start_row=sos_start, start_column=C_COM,
+                       end_row=row - 1, end_column=C_COM)
     total_pct = {k: (1.0 if any(s.get(k) for s in summ["sos"]) else None) for k in keys}
     total_pct["ytd"] = 1.0 if summ["sos"] else None
-    for c in range(1, 5):
+    for c in range(1, C_COM + 1):
         ws.cell(row=row, column=c).fill = f_sos
         ws.cell(row=row, column=c).border = BORDER
     months_row(row, total_pct, pct=True, fill=f_sos)
     row += 1
 
     # ---------- widths / freeze ----------
-    widths = {1: 14, 2: 14, 3: 22, 4: 60, 5: 12, 6: 12}
+    widths = {C_SUB: 14, C_CAT: 14, C_MB: 22, C_BRAND: 22, C_COM: 58,
+              C_MONT: 12, C_WEEK: 12}
     for i in range(FIRST_M, ytd_col + 1):
         widths[i] = 10
     for i, w in widths.items():
