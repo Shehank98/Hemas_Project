@@ -80,16 +80,14 @@ def available_fys(db: Session, category: str, fy_start: int) -> list[int]:
     return sorted({fy_of_month(r[0], fy_start) for r in rows}, reverse=True)
 
 
-def _classify(text: str, va_theme_set, va_keywords, tag_keyword) -> str:
+def _classify(text: str, va_theme_set, va_keywords) -> str:
     low = match_norm(text)
-    if tag_keyword and match_norm(tag_keyword) in low:
-        return "tag"
     if low in va_theme_set:  # exact theme picked in Settings
         return "va"
     for kw in va_keywords:  # optional substring fallback
         if kw and match_norm(kw) in low:
             return "va"
-    return "commercial"
+    return "commercial"  # everything else, incl. "Tag", is a normal commercial
 
 
 def _acd(monthly_dur, monthly_freq, keys):
@@ -115,7 +113,6 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
     fy_start = int(cfg.get("fy_start_month", 4))
     va_keywords = cfg.get("va_keywords", [])
     va_theme_set = {match_norm(t) for t in cfg.get("va_themes", []) if t}
-    tag_keyword = cfg.get("tag_keyword", "Tag")
     brand_subcat = cfg.get("brand_subcategory", {})
     mb_alias = cfg.get("mother_brand_alias", {})
 
@@ -214,7 +211,6 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
             if brand in brand_subcat and not subcat:
                 subcat = brand_subcat[brand]
             themes_out = []
-            tag_spend = defaultdict(float)
             va_spend = defaultdict(float)
             com_dur = defaultdict(int)
             com_freq = defaultdict(int)
@@ -224,7 +220,7 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
 
             for text in sorted(themes_node.keys()):
                 node = themes_node[text]
-                bucket = _classify(text, va_theme_set, va_keywords, tag_keyword)
+                bucket = _classify(text, va_theme_set, va_keywords)
                 for k in keys:
                     sp = node["spend"].get(k, 0.0)
                     fr = node["freq"].get(k, 0)
@@ -232,9 +228,7 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
                     brand_total[k] += sp
                     all_dur[k] += du
                     all_freq[k] += fr
-                    if bucket == "tag":
-                        tag_spend[k] += sp
-                    elif bucket == "va":
+                    if bucket == "va":
                         va_spend[k] += sp
                     else:
                         com_dur[k] += du
@@ -258,12 +252,10 @@ def build_summary(db: Session, category: str, fy_start_year: int | None = None) 
                 "mont_avg": mont_avg,
                 "weekly_avg": weekly_avg,
                 "themes": themes_out,
-                "tag": _sum_row(tag_spend, keys),
                 "value_adds": _sum_row(va_spend, keys),
                 "total": _sum_row(brand_total, keys),
                 "acd_com": _acd(com_dur, com_freq, keys),
                 "acd_all": _acd(all_dur, all_freq, keys),
-                "has_tag": any(tag_spend.values()),
             })
 
         for k in keys:

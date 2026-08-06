@@ -172,8 +172,6 @@ def _write_sheet(wb, summ, pal):
                         wc.number_format = FMT_DEC
                 months_row(row, t, blank_zero=True)
                 row += 1
-            label(row, C_COM, "Tag"); borders(row, C_COM)
-            months_row(row, b["tag"], blank_zero=True); row += 1
             label(row, C_COM, "Value Adds"); borders(row, C_COM)
             months_row(row, b["value_adds"], blank_zero=True); row += 1
             label(row, C_COM, "Total Spends (000)", bold=True, fill=f_total); borders(row, C_COM)

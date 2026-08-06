@@ -224,7 +224,6 @@ function Brand({ b, months, category, subcat, motherBrand, pal }) {
   return (
     <>
       {rows}
-      {simpleRow("Tag", b.tag, { blankZero: true })}
       {simpleRow("Value Adds", b.value_adds, { blankZero: true })}
       {simpleRow("Total Spends (000)", b.total, { dash: true }, { background: hex(pal.total), fontWeight: 700 })}
       {simpleRow("ACD (Com Only)", b.acd_com, { noYtd: true }, { background: hex(pal.acd), fontWeight: 600 })}

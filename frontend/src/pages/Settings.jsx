@@ -50,21 +50,12 @@ export default function Settings({ categories, defaultCategory }) {
       <VaThemePicker settings={settings} saveGlobal={saveGlobal} />
 
       <div className="panel">
-        <h2>Tag &amp; year</h2>
+        <h2>Summary year</h2>
         <p className="sub">
-          Themes matching the Tag keyword go into their own <b>Tag</b> row; the
-          themes you tick above are grouped into the <b>Value Adds</b> row.
+          The themes you tick above are grouped into the <b>Value Adds</b> row;
+          everything else (including "Tag") is shown as a normal commercial.
         </p>
         <div className="row">
-          <label className="field">
-            "Tag" keyword
-            <input
-              type="text"
-              value={settings.tag_keyword || ""}
-              onChange={(e) => setSettings({ ...settings, tag_keyword: e.target.value })}
-              onBlur={(e) => saveGlobal({ tag_keyword: e.target.value })}
-            />
-          </label>
           <label className="field">
             Summary year starts (January = calendar year)
             <select
