@@ -134,10 +134,7 @@ export default function Dashboard({ categories, category, setCategory }) {
                 </tr>
               </thead>
               <tbody>
-                {summary.groups.map((g, gi) => (
-                  <Group key={gi} g={g} months={months} category={summary.category}
-                         showCat={gi === 0} pal={pal} />
-                ))}
+                {buildBodyRows(summary, months, pal)}
                 <tr style={{ background: hex(pal.head), color: "#fff", fontWeight: 700 }}>
                   <td className="txt" colSpan={LEAD} style={{ color: "#fff" }}>TOTAL CATEGORY SPEND</td>
                   {months.map((m) => <td key={m.key} style={{ color: "#fff" }}>{cell(summary.category_total[m.key], { dash: true })}</td>)}
@@ -168,68 +165,106 @@ export default function Dashboard({ categories, category, setCategory }) {
   );
 }
 
-function Group({ g, months, category, showCat, pal }) {
-  return (
-    <>
-      {g.brands.map((b, bi) => (
-        <Brand key={bi} b={b} months={months} pal={pal}
-               subcat={bi === 0 ? g.subcategory : ""}
-               motherBrand={bi === 0 ? g.mother_brand : ""}
-               category={showCat && bi === 0 ? category : ""} />
-      ))}
-      {g.show_total && (
-        <>
-          <tr style={{ background: hex(pal.mbtotal), fontWeight: 700 }}>
-            <td /><td /><td /><td className="txt">Total {g.mother_brand}</td><td />
-            <td>{fmtDec(g.total.mont_avg)}</td><td>{fmtDec(g.total.weekly_avg)}</td>
-            {months.map((m) => <td key={m.key}>{cell(g.total[m.key], { dash: true })}</td>)}
-            <td>{cell(g.total.ytd, { dash: true })}</td>
-          </tr>
-          <tr style={{ background: hex(pal.acd) }}>
-            <td /><td /><td /><td className="txt">Total {g.mother_brand} - ACD</td><td /><td /><td />
-            {months.map((m) => <td key={m.key}>{cell(g.total_acd[m.key])}</td>)}
-            <td />
-          </tr>
-        </>
-      )}
-    </>
-  );
-}
+// Build the table body using rowSpan-merged cells (Category / Mother Brand /
+// Brand span their blocks) so the hierarchy reads exactly like the Excel and the
+// columns can never visually drift.
+function buildBodyRows(summary, months, pal) {
+  const brandRowCount = (b) => Math.max(b.themes.length, 1) + 4; // themes + VA + Total + 2×ACD
+  const groupRowCount = (g) =>
+    g.brands.reduce((s, b) => s + brandRowCount(b), 0) + (g.show_total ? 2 : 0);
+  const catRows = summary.groups.reduce((s, g) => s + groupRowCount(g), 0);
+  const dataCells = (data, opts) =>
+    months.map((m) => <td key={m.key}>{cell(data[m.key], opts)}</td>);
 
-function Brand({ b, months, category, subcat, motherBrand, pal }) {
-  const rows = [];
-  const themeRows = b.themes.length ? b.themes : [{ text: "" }];
-  themeRows.forEach((th, i) => {
-    rows.push(
-      <tr className="theme" key={"t" + i}>
-        <td className="txt">{i === 0 ? subcat : ""}</td>
-        <td className="txt">{i === 0 ? category : ""}</td>
-        <td className="brand txt">{i === 0 ? motherBrand : ""}</td>
-        <td className="brand txt">{i === 0 ? b.brand : ""}</td>
-        <td className="txt">{th.text}</td>
-        <td>{i === 0 ? fmtDec(b.mont_avg) : ""}</td>
-        <td>{i === 0 ? fmtDec(b.weekly_avg) : ""}</td>
-        {months.map((m) => <td key={m.key}>{cell(th[m.key], { blankZero: true })}</td>)}
-        <td>{cell(th.ytd, { blankZero: true })}</td>
-      </tr>
-    );
+  const out = [];
+  let key = 0;
+  let firstGlobal = true;
+
+  summary.groups.forEach((g) => {
+    const gRows = groupRowCount(g);
+    let firstOfGroup = true;
+
+    g.brands.forEach((b) => {
+      const themeRows = b.themes.length ? b.themes : [{ text: "" }];
+      const bRows = brandRowCount(b);
+
+      themeRows.forEach((th, ti) => {
+        const tds = [];
+        if (firstOfGroup && ti === 0) {
+          tds.push(<td key="sub" className="txt" rowSpan={gRows}>{g.subcategory || ""}</td>);
+          if (firstGlobal)
+            tds.push(<td key="cat" className="txt" rowSpan={catRows}>{summary.category}</td>);
+          tds.push(<td key="mb" className="brand txt" rowSpan={gRows}>{g.mother_brand}</td>);
+        }
+        if (ti === 0)
+          tds.push(<td key="br" className="brand txt" rowSpan={bRows}>{b.brand}</td>);
+        tds.push(<td key="com" className="txt">{th.text}</td>);
+        if (ti === 0) {
+          tds.push(<td key="mo" rowSpan={bRows}>{fmtDec(b.mont_avg)}</td>);
+          tds.push(<td key="wk" rowSpan={bRows}>{fmtDec(b.weekly_avg)}</td>);
+        }
+        out.push(
+          <tr className="theme" key={key++}>
+            {tds}
+            {dataCells(th, { blankZero: true })}
+            <td>{cell(th.ytd, { blankZero: true })}</td>
+          </tr>
+        );
+        firstOfGroup = false;
+      });
+
+      out.push(
+        <tr key={key++}>
+          <td className="label">Value Adds</td>
+          {dataCells(b.value_adds, { blankZero: true })}
+          <td>{cell(b.value_adds.ytd, { blankZero: true })}</td>
+        </tr>
+      );
+      out.push(
+        <tr key={key++} style={{ background: hex(pal.total), fontWeight: 700 }}>
+          <td className="label">Total Spends (000)</td>
+          {dataCells(b.total, { dash: true })}
+          <td>{cell(b.total.ytd, { dash: true })}</td>
+        </tr>
+      );
+      out.push(
+        <tr key={key++} style={{ background: hex(pal.acd), fontWeight: 600 }}>
+          <td className="label">ACD (Com Only)</td>
+          {dataCells(b.acd_com)}<td />
+        </tr>
+      );
+      out.push(
+        <tr key={key++} style={{ background: hex(pal.acd), fontWeight: 600 }}>
+          <td className="label">ACD (All Exp)</td>
+          {dataCells(b.acd_all)}<td />
+        </tr>
+      );
+    });
+
+    if (g.show_total) {
+      out.push(
+        <tr key={key++} style={{ background: hex(pal.mbtotal), fontWeight: 700 }}>
+          <td className="txt">Total {g.mother_brand}</td>
+          <td className="txt" />
+          <td>{fmtDec(g.total.mont_avg)}</td>
+          <td>{fmtDec(g.total.weekly_avg)}</td>
+          {months.map((m) => <td key={m.key}>{cell(g.total[m.key], { dash: true })}</td>)}
+          <td>{cell(g.total.ytd, { dash: true })}</td>
+        </tr>
+      );
+      out.push(
+        <tr key={key++} style={{ background: hex(pal.acd) }}>
+          <td className="txt">Total {g.mother_brand} - ACD</td>
+          <td className="txt" /><td /><td />
+          {months.map((m) => <td key={m.key}>{cell(g.total_acd[m.key])}</td>)}
+          <td />
+        </tr>
+      );
+    }
+    firstGlobal = false;
   });
-  const simpleRow = (label, data, opts = {}, style = {}) => (
-    <tr style={style}>
-      <td /><td /><td /><td /><td className="label">{label}</td><td /><td />
-      {months.map((m) => <td key={m.key}>{cell(data[m.key], opts)}</td>)}
-      <td>{opts.noYtd ? "" : cell(data.ytd, opts)}</td>
-    </tr>
-  );
-  return (
-    <>
-      {rows}
-      {simpleRow("Value Adds", b.value_adds, { blankZero: true })}
-      {simpleRow("Total Spends (000)", b.total, { dash: true }, { background: hex(pal.total), fontWeight: 700 })}
-      {simpleRow("ACD (Com Only)", b.acd_com, { noYtd: true }, { background: hex(pal.acd), fontWeight: 600 })}
-      {simpleRow("ACD (All Exp)", b.acd_all, { noYtd: true }, { background: hex(pal.acd), fontWeight: 600 })}
-    </>
-  );
+
+  return out;
 }
 
 function Kpis({ summary, pal }) {
